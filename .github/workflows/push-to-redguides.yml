@@ -21,5 +21,3 @@ jobs:
           description: 'README.md'
           file: 'release.zip'
           domain: 'https://raw.githubusercontent.com/Psymorph/arrow/main//Psymorph/arrow/main'
-          version: '${{ github.ref_name }}'    # e.g. v1.2.3
-          message: 'CHANGELOG.md'              # pair with version
