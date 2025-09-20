@@ -1,5 +1,6 @@
 --[[
-    Deveolped by Psy
+    Developed by Psy
+    - V1.0
     - ARROW overlay (save-on-close or /stoparrow only)
     - Draws a directional arrow toward your current target.
     - Shows target distance (centered).
@@ -237,3 +238,4 @@ while not terminate do
     mq.doevents()
     mq.delay(100)
 end
+
