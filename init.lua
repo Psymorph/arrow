@@ -1,6 +1,6 @@
 --[[
     Developed by Psy
-    - V1.0
+    - V1.0.0
     - ARROW overlay (save-on-close or /stoparrow only)
     - Draws a directional arrow toward your current target.
     - Shows target distance (centered).
