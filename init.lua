@@ -1,5 +1,7 @@
 --[[
-    ARROW overlay (save-on-close or /stoparrow only)
+    Developed by Psy
+    - V1.0.0
+    - ARROW overlay (save-on-close or /stoparrow only)
     - Draws a directional arrow toward your current target.
     - Shows target distance (centered).
     - Lets you tune arrow scale, color, and window position/size (pos is saved; size is fixed unless you remove NoResize).
@@ -11,9 +13,6 @@
       - LIP (INI parser) available as 'lib.LIP'
 ]]
 
----------------------------------------------------------
--- Imports & globals
----------------------------------------------------------
 local mq = require('mq')
 require('ImGui')
 local LIP = require('lib.LIP')
@@ -21,23 +20,16 @@ local LIP = require('lib.LIP')
 local terminate = false
 local isOpen, shouldDraw = true, true
 
----------------------------------------------------------
--- Config path (use MQ's config directory; no mkdir needed)
----------------------------------------------------------
----Absolute path for this script's INI file.
 ---@type string
 local config_file = mq.configDir .. '/Arrow.ini'
 
----------------------------------------------------------
--- Config model & defaults
----------------------------------------------------------
 ---@class ArrowConfig
----@field arrow_scale number        -- Arrow pixel multiplier (1.0 .. 10.0)
----@field arrow_color number[]      -- RGBA [0..1]
----@field window_x number           -- Window X (screen coords), -1 means unset
----@field window_y number           -- Window Y (screen coords)
----@field window_w number           -- Window width (used on first open)
----@field window_h number           -- Window height (used on first open)
+---@field arrow_scale number
+---@field arrow_color number[]
+---@field window_x number
+---@field window_y number
+---@field window_w number
+---@field window_h number
 local config = {
     arrow_scale = 4.0,
     arrow_color = {1.0, 1.0, 0.4, 1.0},
@@ -45,10 +37,6 @@ local config = {
     window_w = 160, window_h = 220,
 }
 
----------------------------------------------------------
--- Utilities: file I/O
----------------------------------------------------------
----Return true if a file exists and is readable.
 ---@param path string
 ---@return boolean
 local function file_exists(path)
@@ -57,8 +45,6 @@ local function file_exists(path)
     return false
 end
 
----Load settings from Arrow.ini into `config` if present.
----Does not create the file on first run (save happens only on close/stop).
 local function load_config()
     if not file_exists(config_file) then return end
     local ok, ini = pcall(LIP.load, config_file)
@@ -77,16 +63,15 @@ local function load_config()
     end
 end
 
----Persist current `config` to Arrow.ini in mq.configDir.
 local function save_config()
     local ini = {Settings = {}}
-    -- arrow settings
+
     ini.Settings.arrow_scale = string.format('%.2f', tonumber(config.arrow_scale) or 4.0)
     ini.Settings.color_r     = string.format('%.2f', tonumber(config.arrow_color[1]) or 1.0)
     ini.Settings.color_g     = string.format('%.2f', tonumber(config.arrow_color[2]) or 1.0)
     ini.Settings.color_b     = string.format('%.2f', tonumber(config.arrow_color[3]) or 0.4)
     ini.Settings.color_a     = string.format('%.2f', tonumber(config.arrow_color[4]) or 1.0)
-    -- window geometry
+
     ini.Settings.window_x    = tostring(math.floor(tonumber(config.window_x or -1)))
     ini.Settings.window_y    = tostring(math.floor(tonumber(config.window_y or -1)))
     ini.Settings.window_w    = tostring(math.floor(tonumber(config.window_w or 160)))
@@ -98,15 +83,11 @@ local function save_config()
     end
 end
 
----------------------------------------------------------
--- Drawing primitives
----------------------------------------------------------
----Draw a filled convex arrow polygon pointing at `heading`.
----@param draw_list userdata   -- ImGui draw list
----@param heading number       -- Degrees CCW
----@param size number          -- Arrow pixel size (square box)
----@param corner ImVec2        -- Top-left corner of arrow box
----@param color integer        -- Packed U32 color (ImGui.GetColorU32)
+---@param draw_list userdata
+---@param heading number
+---@param size number
+---@param corner ImVec2
+---@param color integer
 local function DrawArrow(draw_list, heading, size, corner, color)
     local halfsize, quartersize, eigthsize, trunksize =
         0.5 * size, 0.25 * size, 0.125 * size, 0.38655 * size
@@ -130,22 +111,16 @@ local function DrawArrow(draw_list, heading, size, corner, color)
     draw_list:AddConvexPolyFilled(coords, color)
 end
 
----------------------------------------------------------
--- ImGui window
----------------------------------------------------------
 local flags = bit32.bor(
     ImGuiWindowFlags.NoBackground,
     ImGuiWindowFlags.NoTitleBar,
     ImGuiWindowFlags.NoCollapse,
     ImGuiWindowFlags.NoFocusOnAppearing,
     ImGuiWindowFlags.NoDocking,
-    ImGuiWindowFlags.NoResize -- remove this if you want the user to resize and have it saved
+    ImGuiWindowFlags.NoResize
 )
 
----Main ImGui update loop.
----Tracks changes in memory only; writes the INI on close.
 local function updateImGui()
-    -- Apply saved size/pos on first use in this session
     ImGui.SetNextWindowSize(config.window_w or 160, config.window_h or 220, ImGuiCond.FirstUseEver)
     if (config.window_x or -1) >= 0 and (config.window_y or -1) >= 0 then
         ImGui.SetNextWindowPos(config.window_x, config.window_y, ImGuiCond.FirstUseEver)
@@ -154,17 +129,15 @@ local function updateImGui()
     local wasOpen = isOpen
     isOpen, shouldDraw = ImGui.Begin('ARROW', isOpen, flags)
 
-    -- If the user just closed the window, save once and keep the script running.
     if wasOpen and not isOpen then
-        ImGui.End()      -- balance Begin
-        save_config()    -- save-on-close
+        ImGui.End()
+        save_config()
         return
     end
 
     local ok, err = pcall(function()
         if not shouldDraw then return end
 
-        -- Live-use values (kept in memory until close/stop)
         local scale = math.max(1.0, math.min(10.0, tonumber(config.arrow_scale) or 4.0))
         local arrow_px = ImGui.GetTextLineHeightWithSpacing() * scale
         local colorU32 = ImGui.GetColorU32(ImVec4(
@@ -172,11 +145,9 @@ local function updateImGui()
             config.arrow_color[3], config.arrow_color[4]
         ))
 
-        -- Reserve a square for the arrow
         local arrowCorner = ImGui.GetCursorScreenPosVec()
         ImGui.Dummy(arrow_px, arrow_px)
 
-        -- Distance text centered beneath the arrow
         local dist = (mq.TLO.Target() and tonumber(mq.TLO.Target.Distance3D())) or 0
         local distStr = string.format('%.2f', dist)
         local w = ImGui.CalcTextSize(distStr)
@@ -185,7 +156,6 @@ local function updateImGui()
 
         ImGui.Separator()
 
-        -- Controls (update in memory only)
         ImGui.Text("Color"); ImGui.SameLine()
         do
             local colorFlags = ImGuiColorEditFlags.NoInputs
@@ -214,7 +184,6 @@ local function updateImGui()
             end
         end
 
-        -- Draw arrow or hint
         if mq.TLO.Target() then
             local draw_list = ImGui.GetWindowDrawList()
             DrawArrow(
@@ -233,7 +202,6 @@ local function updateImGui()
             dl:AddText(ImVec2(cx, cy), ImGui.GetColorU32(ImVec4(1,1,1,0.5)), hint)
         end
 
-        -- Track window move/resize in memory so we can persist on close/stop
         do
             local pos = ImGui.GetWindowPosVec()
             local ww  = ImGui.GetWindowWidth()
@@ -252,29 +220,22 @@ local function updateImGui()
     end
 end
 
----------------------------------------------------------
--- Lifecycle & bindings
----------------------------------------------------------
----Stop the overlay script and persist settings immediately.
 function ARROW_Stop()
     if not terminate then
         print('\ao[ARROW]\ax Saving settings and stopping overlay...')
-        save_config()   -- save-on-stop
+        save_config()
         terminate = true
     end
 end
 
--- Bind a command so you can stop (and save) from the console.
 mq.bind('/stoparrow', function() ARROW_Stop() end)
 
--- Load existing config (if any). We don't create the INI until close/stop.
 load_config()
 
--- Register the ImGui callback
 mq.imgui.init('ARROW', updateImGui)
 
--- Main loop
 while not terminate do
     mq.doevents()
     mq.delay(100)
 end
+
